@@ -29,6 +29,9 @@ gtLabels = np.random.randint(0, numClass, numObs)
 fig = plt.figure()
 ax1 = plt.subplot2grid((2, 2), (0, 0))
 ax1.plot(X[:,0], X[:,1], '*')
+ax1.set_xlabel('Dimension - 1')
+ax1.set_ylabel('Dimension - 2')
+ax1.set_title('Original unlabeled 2D data')
 
 means = np.random.random((numClass, numDim))
 labels = np.zeros((numDim, 1))
@@ -61,6 +64,15 @@ ax2 = plt.subplot2grid((2, 2), (0, 1))
 for j in range(numClass):
     clSamples = X[np.where(tLabels==j)[0],:]
     ax2.plot(clSamples[:,0], clSamples[:,1], '*')    
+ax2.set_title('Clustered labeled 2D data')
+ax2.set_xlabel('Dimension - 1')
+ax2.set_ylabel('Dimension - 2')
 
-ax2 = plt.subplot2grid((2, 2), (1, 0), colspan=2)
-ax2.plot(diffMean, '-.*')
+ax3 = plt.subplot2grid((2, 2), (1, 0), colspan=2)
+ax3.plot(diffMean, '-.*')
+ax3.set_xlabel('Iterations')
+ax3.set_ylabel('Difference value')
+ax3.set_title('Progress of differences ..')
+
+plt.tight_layout()
+plt.show()
