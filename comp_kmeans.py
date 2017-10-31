@@ -1,6 +1,15 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
+Created on Mon Oct 30 11:58:56 2017
+
+@author: hasnat
+Compare k-means
+"""
+
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
 Created on Fri Oct 27 15:22:27 2017
 
 @author: hasnat
@@ -25,10 +34,6 @@ X_2 = np.random.normal(0.6, 0.1, (numObs/2, numDim))
 X = np.vstack((X_1, X_2))
 
 gtLabels = np.random.randint(0, numClass, numObs)
-
-fig = plt.figure()
-ax1 = plt.subplot2grid((2, 2), (0, 0))
-ax1.plot(X[:,0], X[:,1], '*')
 
 means = np.random.random((numClass, numDim))
 labels = np.zeros((numDim, 1))
@@ -57,10 +62,21 @@ for itc in range(numIt):
         break
     means = tMean.copy()
     
-ax2 = plt.subplot2grid((2, 2), (0, 1))
+plt.figure(1)
+plt.subplot(211)
 for j in range(numClass):
     clSamples = X[np.where(tLabels==j)[0],:]
-    ax2.plot(clSamples[:,0], clSamples[:,1], '*')    
+    plt.plot(clSamples[:,0], clSamples[:,1], '*')    
+    
+# Standard implementation
+from sklearn.cluster import KMeans
+km = KMeans(n_clusters=2)
+km.fit(X)
+tlabels = km.predict(X)
 
-ax2 = plt.subplot2grid((2, 2), (1, 0), colspan=2)
-ax2.plot(diffMean, '-.*')
+plt.subplot(212)
+for j in range(numClass):
+    clSamples = X[np.where(tlabels==j)[0],:]
+    plt.plot(clSamples[:,0], clSamples[:,1], 'x')    
+
+plt.show()
