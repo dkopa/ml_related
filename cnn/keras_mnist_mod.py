@@ -90,10 +90,10 @@ fc1 = Dense(3, kernel_regularizer=l2(gl_wd), use_bias=False)(flat)
 act_1 = PReLU()(fc1)
 
 bn1 = BatchNormalization()(act_1)
-#l2_fc1 = Lambda(lambda  x: K.l2_normalize(x, axis=1))(fc1)
-#scale_l2 = Lambda(lambda  x: x*1)(l2_fc1)
+l2_fc1 = Lambda(lambda  x: K.l2_normalize(x, axis=1))(bn1)
+scale_l2 = Lambda(lambda  x: x*1)(l2_fc1)
     
-fc_cl = Dense(nb_classes, activation='softmax')(bn1)
+fc_cl = Dense(nb_classes, activation='softmax')(scale_l2)
 
 model = Model(inputs=img_input, outputs = fc_cl)
 
@@ -106,7 +106,7 @@ model.summary()
 
 
 # Start training    
-mulsteplr = [8, 12, 16]
+mulsteplr = [3, 5, 7]
 mulstepCnt = 0
 for j in range(max(mulsteplr)):
 #for j in range(epochs):    
@@ -144,6 +144,6 @@ for j in range(max(mulsteplr)):
         K.set_value(sgd.lr, 0.8 * K.get_value(sgd.lr))
         mulstepCnt = mulstepCnt + 1
         
-    submodel = Model(inputs=img_input, outputs = act_1)        
+    submodel = Model(inputs=img_input, outputs = l2_fc1)        
     points3D = submodel.predict(X_test)
-    np.savez('points3D_bn_'+str(j), X=points3D, y=Y_labels)
+    np.savez('points3D_l2sm_'+str(j), X=points3D, y=Y_labels)
