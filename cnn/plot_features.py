@@ -30,7 +30,7 @@ def plot_features_3D(ftVec, lab):
 #cycol = cycle('bgrcmk').next
              
 # Read/Load
-npzfile = np.load('points3D_l2sm_3.npz')
+npzfile = np.load('/home/hasnat/Desktop/mnist_verify/mn_vmfml_kappa_1_2_FT_9999.npz')
 X = npzfile['X']
 y = npzfile['y']
 
