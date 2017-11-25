@@ -4,10 +4,10 @@
 Created on Thu Nov 23 15:46:58 2017
 
 @author: hasnat
-GAN MNIST
+GAN MNIST - separate discriminator
 """
 import tensorflow as tf
-
+from ops import *
 FLAGS = tf.app.flags.FLAGS
 do_print = True
 
@@ -21,6 +21,12 @@ def _flatten(input_, batch_size=FLAGS.batch_size):
     
     return reshape, dim
 
+def lrelu(x, leak=0.2, name="lrelu"):
+    with tf.variable_scope(name):
+        f1 = 0.5 * (1 + leak)
+        f2 = 0.5 * (1 - leak)
+        return f1 * x + f2 * abs(x)
+    
 def parametric_relu(_x):
   alphas = tf.get_variable('alpha', _x.get_shape()[-1],
                            initializer=tf.constant_initializer(0.0), dtype=tf.float32)
@@ -50,18 +56,6 @@ def do_fc(scope_name, input_, n_ip, n_op, stdVal=0.01, wt_d=0.0, biasVal=0.0, is
         
   return fc_op
 
-def do_fc_norm(scope_name, input_, n_ip, n_op, stdVal=0.01, wt_d=0.0005, isTrain=True):
-  if(do_print):
-      print(input_)
-      
-  with tf.variable_scope(scope_name) as scope:      
-      weights = _variable_with_weight_decay('weights', shape=[n_ip, n_op],
-                                              stddev=stdVal, wd=wt_d)
-      weights_norm = tf.nn.l2_normalize(weights,dim=0)
-      fc_op = tf.matmul(input_, weights_norm)
-              
-  return fc_op, weights_norm
-
 def do_conv_act(scope_name, input_, k_size, n_in, n_op, strd = 1, stdVal=0.01, wt_d=0.0, biasVal=0.0, isTrain=True, isBias=True, isBN=False):
     if(do_print):
       print(input_)
@@ -78,7 +72,8 @@ def do_conv_act(scope_name, input_, k_size, n_in, n_op, strd = 1, stdVal=0.01, w
                                               variables_collections=["BN_NT_VC"])
         
       # Activation: Parametric ReLU
-      conv_op = parametric_relu(conv_op)
+      # conv_op = parametric_relu(conv_op)
+      conv_op = lrelu(conv_op)
 
     return conv_op
 
@@ -113,7 +108,8 @@ def do_deconv_act(scope_name, input_, op_shape, k_size, n_in, n_op, strd = 1, st
                                               variables_collections=["BN_NT_VC"])
       if(isAct):
           # Activation: Parametric ReLU
-          return parametric_relu(deconv_op)
+          # return parametric_relu(deconv_op)
+          return tf.nn.relu(deconv_op)
       else:
           return deconv_op
 
@@ -155,50 +151,66 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
     tf.add_to_collection('losses', weight_decay)
   return var
 
-#def discriminator(image, df_dim, reuse=False):
+#def discriminator(images, reuse=False):
 #    if reuse:
 #        tf.get_variable_scope().reuse_variables()
 #
-#    h0 = lrelu(conv2d(image, 3, df_dim, name='d_h0_conv')) #16x16x64
-#    h1 = lrelu(d_bn1(conv2d(h0, df_dim, df_dim*2, name='d_h1_conv'))) #8x8x128
-#    h2 = lrelu(d_bn2(conv2d(h1, df_dim*2, df_dim*4, name='d_h2_conv'))) #4x4x256
-#    h4 = dense(tf.reshape(h2, [FLAGS.batch_size, -1]), 4*4*df_dim*4, 1, scope='d_h3_lin')
+#    h1 = lrelu(conv2d(images, 1, 16, name='d_h0_conv_')) #14x14x16
+#    h2 = lrelu(conv2d_bn(h1, 16, 32, name='d_h1_conv')) #7x7x32
+#    h3 = lrelu(conv2d_bn(h2, 32, 64, name='d_h2_conv')) #4x4x64
+#    h4 = dense(tf.reshape(h3, [FLAGS.batch_size, -1]), 4*4*64, 1, scope='d_h3_lin')
 #    return tf.nn.sigmoid(h4), h4
 
 # Discriminator
-def discriminator_net(input_images, batch_size=FLAGS.batch_size, reuse=False, isTrain=True):
-#    if reuse:
-#        tf.get_variable_scope().reuse_variables()        
-    h1 = do_conv_act('dis_conv1_1', input_images, 5, 1, 16, strd = 2, stdVal=5e-2, isTrain=isTrain)
-    h2 = do_conv_act('dis_conv1_2', h1, 5, 16, 32, strd = 2, stdVal=5e-2, isBN=True, isTrain=isTrain)
-    h2_flat, t_num_dim = _flatten(h2, batch_size=batch_size)
+def discriminator(input_images, batch_size=FLAGS.batch_size, reuse=False, isTrain=True):
+    if reuse:
+        tf.get_variable_scope().reuse_variables()        
+    h1 = do_conv_act('d_conv1_1', input_images, 5, 1, 16, strd = 2, stdVal=2e-2, isTrain=isTrain)
+    h2 = do_conv_act('d_conv1_2', h1, 5, 16, 32, strd = 2, stdVal=2e-2, isBN=True, isTrain=isTrain)
+    h3 = do_conv_act('d_conv1_3', h2, 5, 32, 64, strd = 2, stdVal=2e-2, isBN=True, isTrain=isTrain)
+    h3_flat, t_num_dim = _flatten(h3, batch_size=batch_size)
     
-    fc3 = do_fc('dis_w_mean', h2_flat, t_num_dim, 1, stdVal=0.02, wt_d=0.002)
+    fc3 = do_fc('d_fc', h3_flat, t_num_dim, 1, stdVal=0.02)
     
     prob_cl = tf.nn.sigmoid(fc3)
-    
-    return fc3, prob_cl, t_num_dim
+    return prob_cl, fc3
 
-#def generator(z):
-#    z2 = dense(z, z_dim, 4*4*gf_dim*4, scope='g_h0_lin')
-#    h0 = tf.nn.relu(g_bn0(tf.reshape(z2, [-1, 4, 4, gf_dim*4]))) # 4x4x256
-#    h1 = tf.nn.relu(g_bn1(conv_transpose(h0, [batchsize, 8, 8, gf_dim*2], "g_h1"))) #8x8x128
-#    h2 = tf.nn.relu(g_bn2(conv_transpose(h1, [batchsize, 16, 16, gf_dim*1], "g_h2"))) #16x16x64
-#    h4 = conv_transpose(h2, [batchsize, 32, 32, 3], "g_h4")
-#    return tf.nn.tanh(h4)
+#def generator(z, z_dim=100):
+#    z2 = dense(z, z_dim, 4*4*64, scope='g_h0_lin')
+#    rs = tf.reshape(z2, [-1, 4, 4, 64])
+#    rs_bn = tf.contrib.layers.batch_norm(rs, is_training=True, 
+#                                              scale=True, updates_collections=None,
+#                                              variables_collections=["BN_NT_VC"])
+#    h0 = tf.nn.relu(rs_bn) # 4x4x64
+#    h1 = tf.nn.relu(conv_transpose_bn(h0, [FLAGS.batch_size, 7, 7, 32], "g_h1_")) #7x7x128
+#    h2 = tf.nn.relu(conv_transpose_bn(h1, [FLAGS.batch_size, 14, 14, 16], "g_h2")) #16x16x64
+#    h4 = conv_transpose(h2, [FLAGS.batch_size, 28, 28, 1], "g_h4")
+#    return tf.nn.sigmoid(h4)
 
 # Generator
-def generator_net(_code, t_num_dim, code_len, isTrain=True):    
-    # batch_size = int(FLAGS.batch_size)
-    z_develop = do_fc('gen_z_matrix_0', _code, code_len, t_num_dim, stdVal=0.04, wt_d=0.004, isTrain=isTrain)
-    z_develop_rs = tf.reshape(z_develop, [FLAGS.batch_size, 7, 7, 32])
-    z_matrix = parametric_relu(z_develop_rs)
+def generator(_code, t_num_dim=512, code_len=100, isTrain=True):    
+    z_develop = do_fc('g_z_matrix_0', _code, code_len, t_num_dim, stdVal=0.02, isTrain=isTrain, isBN=True)
+    z_develop_rs = tf.reshape(z_develop, [FLAGS.batch_size, 4, 4, 32])
+    z_matrix = tf.nn.relu(z_develop_rs)
     
-    h1 = do_deconv_act('gen_dconv1_1', z_matrix, [FLAGS.batch_size, 14, 14, 16], 5, 32, 16, strd = 2, stdVal=5e-2, isBN=True, isTrain=isTrain)
-    h2 = do_deconv_act('gen_dconv1_2', h1, [FLAGS.batch_size, 28, 28, 1], 5, 16, 1, strd = 2, stdVal=5e-2, isAct=False, isBN=True, isTrain=isTrain)
-    h2 = tf.nn.tanh(h2)
-    
-    return h2
+    h1 = do_deconv_act('g_dconv1_1', z_matrix, [FLAGS.batch_size, 7, 7, 32], 5, 32, 32, strd = 2, stdVal=5e-2, isBN=True, isBias=False, isTrain=isTrain)
+    h2 = do_deconv_act('g_dconv1_2', h1, [FLAGS.batch_size, 14, 14, 16], 5, 32, 16, strd = 2, stdVal=5e-2, isBN=True, isBias=False, isTrain=isTrain)
+    h3 = do_deconv_act('g_dconv1_3', h2, [FLAGS.batch_size, 28, 28, 1], 5, 16, 1, strd = 2, stdVal=5e-2, isAct=False, isBN=False, isBias=False, isTrain=isTrain)
+    h3 = tf.nn.sigmoid(h3)
+
+    return h3
+## Generator
+#def generator(_code, t_num_dim=512, code_len=100, isTrain=True, batch_size=FLAGS.batch_size):    
+#    z_develop = do_fc('g_z_matrix_0', _code, code_len, t_num_dim, stdVal=0.02, isTrain=isTrain, isBN=True)
+#    z_develop_rs = tf.reshape(z_develop, [batch_size, 4, 4, 32])
+#    z_matrix = tf.nn.relu(z_develop_rs)
+#    
+#    h1 = do_deconv_act('g_dconv1_1', z_matrix, [batch_size, 7, 7, 32], 5, 32, 32, strd = 2, stdVal=5e-2, isBN=True, isBias=False, isTrain=isTrain)
+#    h2 = do_deconv_act('g_dconv1_2', h1, [batch_size, 14, 14, 16], 5, 32, 16, strd = 2, stdVal=5e-2, isBN=True, isBias=False, isTrain=isTrain)
+#    h3 = do_deconv_act('g_dconv1_3', h2, [batch_size, 28, 28, 1], 5, 16, 1, strd = 2, stdVal=5e-2, isAct=False, isBias=False, isTrain=isTrain)
+#    h3 = tf.nn.sigmoid(h3)
+#
+#    return h3
   
 def loss_total():
   # Calculate the average cross entropy loss across the batch.
